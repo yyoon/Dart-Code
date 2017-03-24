@@ -228,7 +228,7 @@
 		"debuggers": [
 			{
 				"type": "dart-cli",
-				"label": "Dart command line",
+				"label": "Dart: Launch Command-line Program",
 				"enableBreakpointsFor": {
 					"languageIds": [
 						"dart"
@@ -269,10 +269,42 @@
 				},
 				"initialConfigurations": [
 					{
-						"name": "Dart command line",
+						"name": "Dart: Launch Command-line Program",
 						"type": "dart-cli",
 						"request": "launch",
 						"program": "${workspaceRoot}/bin/main.dart"
+					}
+				]
+			},
+			{
+				"type": "dart-cli-attach",
+				"label": "Dart: Attach to Command-line Program",
+				"enableBreakpointsFor": {
+					"languageIds": [
+						"dart"
+					]
+				},
+				"program": "./out/src/debug/debug_entry.js",
+				"runtime": "node",
+				"startSessionCommand": "dart.startDebugSessionAttach",
+				"configurationAttributes": {
+					"launch": {
+						"required": [
+							"observatoryUrl"
+						],
+						"properties": {
+							"observatoryUri": {
+								"type": "string",
+								"description": "The URL of the running Observatory instance"
+							}
+						}
+					}
+				},
+				"initialConfigurations": [
+					{
+						"name": "Dart: Attach to Command-line Program",
+						"type": "dart-cli-attach",
+						"request": "attach"
 					}
 				]
 			}

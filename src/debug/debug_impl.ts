@@ -33,6 +33,12 @@ export interface DartLaunchRequestArguments extends DebugProtocol.LaunchRequestA
 	args: Array<string>;
 }
 
+export interface DartAttachRequestArguments extends DebugProtocol.AttachRequestArguments {
+	debugSdkLibraries: boolean;
+	debugExternalLibraries: boolean;
+	observatoryUrl: string;
+}
+
 export class DartDebugSession extends DebugSession {
 	private sourceFile: string;
 	private cwd: string;
@@ -69,14 +75,13 @@ export class DartDebugSession extends DebugSession {
 	}
 
 	protected launchRequest(response: DebugProtocol.LaunchResponse, args: DartLaunchRequestArguments): void {
-		this.log(JSON.stringify(args));
 		this.cwd = args.cwd;
 		this.sdkPath = args.sdkPath;
 		this.debugSdkLibraries = args.debugSdkLibraries;
 		this.debugExternalLibraries = args.debugExternalLibraries;
 		this.dartPath = this.sdkPath != null ? path.join(this.sdkPath, "bin", "dart") : "dart";
 		this.sourceFile = path.relative(args.cwd, args.program);
-		this.sendEvent(new OutputEvent(`dart ${this.sourceFile}\n`));
+		this.sendEvent(new OutputEvent(`Dart: Launching ${this.sourceFile}\n`));
 
 		this.packageMap = new PackageMap(PackageMap.findPackagesFile(args.program));
 		this.localPackageName = getLocalPackageName(args.program);
@@ -139,6 +144,19 @@ export class DartDebugSession extends DebugSession {
 
 		if (!debug)
 			this.sendEvent(new InitializedEvent());
+	}
+
+	protected attachRequest(response: DebugProtocol.AttachResponse, args: DartAttachRequestArguments): void {
+		this.debugSdkLibraries = args.debugSdkLibraries;
+		this.debugExternalLibraries = args.debugExternalLibraries;
+
+		// TODO: How can we get these? Do we need them?		
+		//this.packageMap = new PackageMap(PackageMap.findPackagesFile(args.program));
+		//this.localPackageName = getLocalPackageName(args.program);
+
+		this.sendEvent(new OutputEvent(`Dart: Attaching to ${args.observatoryUrl}\n`));
+		this.sendResponse(response);
+		this.initObservatory(args.observatoryUrl);
 	}
 
 	private initObservatory(uri: string) {

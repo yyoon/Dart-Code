@@ -19,6 +19,7 @@ export class SdkCommands {
 
 	registerCommands(context: vs.ExtensionContext) {
 		// Debug commands.
+		// TODO: Move these somewhere better?
 		context.subscriptions.push(vs.commands.registerCommand("dart.startDebugSession", debugConfig => {
 			if (Object.keys(debugConfig).length === 0) {
 				return {
@@ -36,6 +37,24 @@ export class SdkCommands {
 			debugConfig.debugExternalLibraries = debugConfig.debugExternalLibraries || config.debugExternalLibraries;
 			if (debugConfig.checkedMode === undefined)
 				debugConfig.checkedMode = true;
+
+			vs.commands.executeCommand('vscode.startDebug', debugConfig);
+			return {
+				status: 'ok'
+			};
+		}));
+		context.subscriptions.push(vs.commands.registerCommand("dart.startDebugSessionAttach", debugConfig => {
+			if (Object.keys(debugConfig).length === 0) {
+				return {
+					status: 'initialConfiguration'
+				};
+			}
+
+			analytics.logDebuggerStart();
+
+			// Attach any properties that weren't explicitly set.			
+			debugConfig.debugSdkLibraries = debugConfig.debugSdkLibraries || config.debugSdkLibraries;
+			debugConfig.debugExternalLibraries = debugConfig.debugExternalLibraries || config.debugExternalLibraries;
 
 			vs.commands.executeCommand('vscode.startDebug', debugConfig);
 			return {
