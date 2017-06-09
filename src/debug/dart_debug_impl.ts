@@ -4,7 +4,7 @@ import * as child_process from "child_process";
 import * as path from "path";
 import {
 	DebugSession,
-	InitializedEvent, TerminatedEvent, StoppedEvent, BreakpointEvent, OutputEvent, Event,
+	InitializedEvent, TerminatedEvent, StoppedEvent, ContinuedEvent, BreakpointEvent, OutputEvent, Event,
 	Thread, StackFrame, Scope, Source, Handles, Breakpoint, ThreadEvent, Variable, ModuleEvent,
 	Module
 } from "vscode-debugadapter";
@@ -49,18 +49,13 @@ export class DartDebugSession extends DebugSession {
 	private packageMap: PackageMap;
 	private localPackageName: string;
 
-	public constructor() {
-		super();
-
-		this.threadManager = new ThreadManager(this);
-	}
-
 	protected initializeRequest(
 		response: DebugProtocol.InitializeResponse,
 		args: DebugProtocol.InitializeRequestArguments
 	): void {
 		response.body = {
 			supportsConfigurationDoneRequest: true,
+			supportsRestartRequest: true,
 			supportsEvaluateForHovers: true,
 			exceptionBreakpointFilters: [
 				{ filter: "All", label: "All Exceptions", default: false },
@@ -102,11 +97,13 @@ export class DartDebugSession extends DebugSession {
 	private startProcess() {
 		this.sendEvent(new OutputEvent(`dart ${this.sourceFile}\n`));
 
-		let process = child_process.spawn(this.dartPath, this.appArgs, {
-			cwd: this.cwd
-		});
+		this.childProcess = null;
+		this.processExited = false;
+		this.observatory = null;
+		this.threadManager = new ThreadManager(this);
 
-		this.childProcess = process;
+		this.childProcess = child_process.spawn(this.dartPath, this.appArgs, { cwd: this.cwd });
+		const process = this.childProcess;
 
 		process.stdout.setEncoding("utf8");
 		process.stdout.on("data", (data) => {
@@ -122,7 +119,7 @@ export class DartDebugSession extends DebugSession {
 				if (!uri.endsWith('/'))
 					uri = uri + '/';
 
-				this.initObservatory(uri);
+				this.initObservatory(uri, process);
 			} else {
 				this.sendEvent(new OutputEvent(data.toString(), "stdout"));
 			}
@@ -136,19 +133,21 @@ export class DartDebugSession extends DebugSession {
 		});
 		process.on("exit", (code, signal) => {
 			this.processExited = true;
-			if (!code && !signal)
-				this.sendEvent(new OutputEvent("finished"));
-			else
-				this.sendEvent(new OutputEvent(`finished (${signal ? `${signal}`.toLowerCase() : code})`));
+			if (process == this.childProcess) { // If we're not the "active" process, we've been killed due to a restart and should not terminate.
+				if (!code && !signal)
+					this.sendEvent(new OutputEvent("finished"));
+				else
+					this.sendEvent(new OutputEvent(`finished (${signal ? `${signal}`.toLowerCase() : code})`));
 
-			this.sendEvent(new TerminatedEvent());
+				this.sendEvent(new TerminatedEvent());
+			}
 		});
 
 		if (!this.debug)
 			this.sendEvent(new InitializedEvent());
 	}
 
-	private initObservatory(uri: string) {
+	private initObservatory(uri: string, owningProcess: child_process.ChildProcess) {
 		this.observatory = new ObservatoryConnection(`${uri}ws`);
 		this.observatory.onLogging(message => {
 			this.sendEvent(new OutputEvent(`${message.trim()}\n`));
@@ -201,7 +200,7 @@ export class DartDebugSession extends DebugSession {
 		this.observatory.onClose((code: number, message: string) => {
 			// This event arrives before the process exit event.
 			setTimeout(() => {
-				if (!this.processExited)
+				if (!this.processExited && owningProcess == this.childProcess) // If we're not the "active" process, we've been killed due to a restart and should not terminate.
 					this.sendEvent(new TerminatedEvent());
 			}, 100);
 		});
@@ -214,6 +213,33 @@ export class DartDebugSession extends DebugSession {
 		if (this.childProcess != null)
 			this.childProcess.kill();
 		super.disconnectRequest(response, args);
+	}
+
+	protected restartRequest(
+		response: DebugProtocol.RestartResponse,
+		args: DebugProtocol.RestartArguments
+	): void {
+		var restart = () => {
+			this.startProcess();
+			super.restartRequest(response, args);
+		};
+
+		// Resume all threads so we're not stuck at old breakpoints
+		const threads = this.threadManager.getThreads();
+		if (threads.length > 0)
+			this.sendEvent(new ContinuedEvent(threads[0].id, true));
+
+		// Reset the active process so it knows it's being restarted.
+		const oldProcess = this.childProcess;
+		this.childProcess = null;
+		if (oldProcess != null) {
+			oldProcess.on("exit", (code, signal) => {
+				setTimeout(restart, 50); // Wait to allow other exit handlers to finish.
+			});
+			oldProcess.kill();
+		}
+		else
+			restart();
 	}
 
 	protected setBreakPointsRequest(
