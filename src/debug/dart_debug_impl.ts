@@ -40,6 +40,8 @@ export class DartDebugSession extends DebugSession {
 	private debugSdkLibraries: boolean;
 	private debugExternalLibraries: boolean;
 	private dartPath: string;
+	private appArgs: string[] = [];
+	private debug: boolean;
 	private childProcess: child_process.ChildProcess;
 	private processExited: boolean = false;
 	observatory: ObservatoryConnection;
@@ -76,28 +78,32 @@ export class DartDebugSession extends DebugSession {
 		this.debugExternalLibraries = args.debugExternalLibraries;
 		this.dartPath = this.sdkPath != null ? path.join(this.sdkPath, "bin", "dart") : "dart";
 		this.sourceFile = path.relative(args.cwd, args.program);
-		this.sendEvent(new OutputEvent(`dart ${this.sourceFile}\n`));
 
 		this.packageMap = new PackageMap(PackageMap.findPackagesFile(args.program));
 		this.localPackageName = getLocalPackageName(args.program);
 
 		this.sendResponse(response);
 
-		let debug = !args.noDebug;
-		let appArgs = [];
-		if (debug) {
-			appArgs.push("--enable-vm-service:0");
-			appArgs.push("--pause_isolates_on_start=true");
+		this.debug = !args.noDebug;
+		if (this.debug) {
+			this.appArgs.push("--enable-vm-service:0");
+			this.appArgs.push("--pause_isolates_on_start=true");
 		}
 		if (args.checkedMode) {
-			appArgs.push("--checked");
+			this.appArgs.push("--checked");
 		}
-		appArgs.push(this.sourceFile);
+		this.appArgs.push(this.sourceFile);
 		if (args.args)
-			appArgs = appArgs.concat(args.args);
+			this.appArgs = this.appArgs.concat(args.args);
 
-		let process = child_process.spawn(this.dartPath, appArgs, {
-			cwd: args.cwd
+		this.startProcess();
+	}
+
+	private startProcess() {
+		this.sendEvent(new OutputEvent(`dart ${this.sourceFile}\n`));
+
+		let process = child_process.spawn(this.dartPath, this.appArgs, {
+			cwd: this.cwd
 		});
 
 		this.childProcess = process;
@@ -134,10 +140,11 @@ export class DartDebugSession extends DebugSession {
 				this.sendEvent(new OutputEvent("finished"));
 			else
 				this.sendEvent(new OutputEvent(`finished (${signal ? `${signal}`.toLowerCase() : code})`));
+
 			this.sendEvent(new TerminatedEvent());
 		});
 
-		if (!debug)
+		if (!this.debug)
 			this.sendEvent(new InitializedEvent());
 	}
 
