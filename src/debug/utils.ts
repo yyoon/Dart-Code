@@ -150,6 +150,7 @@ export class PackageMap {
 }
 
 export interface DartLaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
+	type: string;
 	cwd: string;
 	checkedMode: boolean;
 	dartPath: string;

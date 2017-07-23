@@ -28,7 +28,8 @@
 		"dartlang",
 		"pub",
 		"pubspec",
-		"flutter"
+		"flutter",
+		"web"
 	],
 	"icon": "media/icon.png",
 	"activationEvents": [
@@ -387,7 +388,7 @@
 		"debuggers": [
 			{
 				"type": "dart-cli",
-				"label": "Dart command line",
+				"label": "Dart command line app",
 				"enableBreakpointsFor": {
 					"languageIds": [
 						"dart"
@@ -428,7 +429,7 @@
 				},
 				"initialConfigurations": [
 					{
-						"name": "Dart command line",
+						"name": "Dart command line app",
 						"type": "dart-cli",
 						"request": "launch",
 						"program": "${workspaceRoot}/bin/main.dart"
@@ -436,13 +437,61 @@
 				],
 				"configurationSnippets": [
 					{
-						"label": "Dart command line",
+						"label": "Dart command line app",
 						"description": "Launch and debug Dart command line applications",
 						"body": {
 							"name": "Dart command line",
 							"type": "dart-cli",
 							"request": "launch",
 							"program": "^\"\\${workspaceRoot}/bin/main.dart\""
+						}
+					}
+				]
+			},
+			{
+				"type": "dart-web",
+				"label": "Dart web app",
+				"enableBreakpointsFor": {
+					"languageIds": [
+						"dart"
+					]
+				},
+				"program": "./out/src/debug/web_debug_entry.js",
+				"runtime": "node",
+				"startSessionCommand": "_dart.startDebugSession",
+				"configurationAttributes": {
+					"launch": {
+						"properties": {
+							"cwd": {
+								"type": "string",
+								"description": "Relative path to web application root.",
+								"default": "web"
+							},
+							"url": {
+								"type": "string",
+								"description": "Relative URL to launch.",
+								"default": "/"
+							}
+						}
+					}
+				},
+				"initialConfigurations": [
+					{
+						"name": "Dart web app",
+						"type": "dart-web",
+						"request": "launch",
+						"cwd": "web"
+					}
+				],
+				"configurationSnippets": [
+					{
+						"label": "Dart web app",
+						"description": "Launch and debug Dart web applications",
+						"body": {
+							"name": "Dart web app",
+							"type": "dart-web",
+							"request": "launch",
+							"cwd": "web"
 						}
 					}
 				]

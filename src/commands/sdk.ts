@@ -13,6 +13,8 @@ import { FlutterLaunchRequestArguments, isWin } from "../debug/utils";
 import { FlutterDeviceManager } from "../flutter/device_manager";
 import { SdkManager } from "../sdk/sdk_manager";
 
+const CHROME_DEBUG_EXTENSION_ID = "msjsdiag.debugger-for-chrome";
+
 export class SdkCommands {
 	private sdks: Sdks;
 	private deviceManager: FlutterDeviceManager;
@@ -58,10 +60,33 @@ export class SdkCommands {
 			if (isFlutterProject) {
 				resetFlutterSettings();
 				debugConfig.program = debugConfig.program || "${workspaceRoot}/lib/main.dart"; // Set Flutter default path.
+			} else if (debugConfig.type == "dart-web") {
+				// TODO: Don't need this for noDebug using another browser?
+				const ext = vs.extensions.getExtension(CHROME_DEBUG_EXTENSION_ID);
+				if (!ext) {
+					// TODO: Easy download link...
+					vs.window.showErrorMessage("The 'Debugger for Chrome' extension is required to debug Dart web apps.");
+					return;
+				}
+				else {
+					// TODO: Bump to Code 1.15 when it ships so we can hook the debug end
+					// and terminate pub serve.
+					const webRoot = vs.Uri.file(path.join(vs.workspace.rootPath, debugConfig.cwd));
+					const pubServeProcess = this.runPub("serve", webRoot);
+					const webDebugConfig = {
+						type: "chrome",
+						request: "launch",
+						name: "Dart web app",
+						url: "http://localhost:8080/", // TODO: What if it's in use?
+						webRoot: webRoot
+					};
+					vs.commands.executeCommand("vscode.startDebug", webDebugConfig);
+					return { status: "ok" };
+				}
 			}
 
-			vs.commands.executeCommand('vscode.startDebug', debugConfig);
-			return { status: 'ok' };
+			vs.commands.executeCommand("vscode.startDebug", debugConfig);
+			return { status: "ok" };
 		}));
 
 		// Pub commands.
@@ -148,7 +173,7 @@ export class SdkCommands {
 		channels.runProcessInChannel(process, channel);
 	}
 
-	private runPub(command: string, selection?: vs.Uri) {
+	private runPub(command: string, selection?: vs.Uri): child_process.ChildProcess {
 		let root = vs.workspace.rootPath;
 		let projectPath = selection
 			? path.dirname(selection.fsPath)
@@ -171,5 +196,6 @@ export class SdkCommands {
 
 		let process = child_process.spawn(pubPath, args, { "cwd": projectPath });
 		channels.runProcessInChannel(process, channel);
+		return process;
 	}
 }
